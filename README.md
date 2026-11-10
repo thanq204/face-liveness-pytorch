@@ -6,6 +6,16 @@ A passive face liveness prototype trained on 91 videos I recorded. It uses YuNet
 
 ![Held-out clip results for the RGB and grayscale CNNs](docs/media/benchmark.png)
 
+## What you can run
+
+| Interface | Entry point |
+| --- | --- |
+| Training, single-video prediction, split evaluation and export | [personal_liveness.py](personal_liveness.py) |
+| Desktop webcam, video playback and annotated MP4 | [desktop.py](desktop.py) |
+| Browser webcam and REST API for images, live sessions and video | [api.py](api.py), [browser UI](static/index.html), [API guide](docs/API.md) |
+| Python CLI for API requests | [client.py](client.py) |
+| Local video upload demo | [app.py](app.py) |
+
 ## Results
 
 I recorded 47 spoof and 44 real clips. I assigned clips to train, validation and test before sampling frames, using a stratified split of **63 / 14 / 14 videos**. Of 2,098 sampled frames, 1,712 contained one face suitable for scoring. Both CNNs started from random weights and were trained for 15 epochs on CPU.
@@ -49,16 +59,47 @@ Organize your local videos under `recordings/Video real/` and `recordings/Video 
 python personal_liveness.py prepare --data path/to/recordings
 python personal_liveness.py train --epochs 15
 python personal_liveness.py predict --model artifacts/personal/liveness_rgb.pt --video path/to/clip.mp4
+python personal_liveness.py evaluate --split test
+python personal_liveness.py export --output artifacts/export/liveness_rgb.torchscript.pt
 ```
 
-To try the browser interface on your machine after training:
+The export contains the CNN. Feed normalized NCHW tensors of 32 × 32 crops and apply sigmoid to the output logit for the real class.
+
+## Desktop webcam and annotated video
+
+```bash
+python desktop.py --camera 0
+python desktop.py --video path/to/clip.mp4 --headless --output artifacts/annotated.mp4
+```
+
+Use **Q** or **Esc** to close the desktop window. Change `--camera 0` to the index of your device. For the on-screen decision, the app averages up to six consecutive scored frames and clears that window when there is no eligible face.
+
+## Browser webcam and API
+
+```bash
+python -m pip install -r requirements-api.txt
+python api.py
+```
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000), click **Start camera** and grant camera access. The web interface sends frames to the local API and draws the detected box and smoothed score. You can also call the same API from Python:
+
+```bash
+python client.py --image path/to/frame.jpg
+python client.py --video path/to/clip.mp4
+```
+
+The API listens on localhost and needs no key. [Endpoints and examples](docs/API.md)
+
+## Streamlit video demo
 
 ```bash
 python -m pip install -r requirements-demo.txt
 python -m streamlit run app.py
 ```
 
-The demo lets you choose a local checkpoint and score a video. It reports the predicted label, the model's score for the real class, and frame coverage. The project runs locally without an API key. Videos, cached face crops and trained checkpoints stay on the machine. The repository includes the source and aggregate benchmark.
+Choose a checkpoint and upload a video to get the label, score and frame coverage. Videos, cached face crops and trained checkpoints stay on the machine. The repository includes the source and aggregate benchmark.
+
+Run the API contract checks with `python -m unittest discover -s tests` after installing the API requirements.
 
 ## Evaluation scope
 

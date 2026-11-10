@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Liveness | Webcam</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/webcam.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="kicker">PYTORCH PORTFOLIO · LOCAL DEMO</p>
+    <h1>Face Liveness</h1>
+    <p>Try the trained CNN with one face in view. The local API smooths the model score across the last six eligible frames.</p>
+    <section class="screen" aria-label="Webcam preview">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="overlay"></canvas>
+      <div id="empty">Camera preview</div>
+    </section>
+    <div class="controls">
+      <button id="start">Start camera</button>
+      <button id="stop" disabled>Stop</button>
+      <output id="result" aria-live="polite">Ready</output>
+    </div>
+    <p class="note">Research demo for local testing. The model score is not an identity check.</p>
+  </main>
+</body>
+</html>

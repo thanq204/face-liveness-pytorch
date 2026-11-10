@@ -19,7 +19,10 @@ st.set_page_config(page_title="Face Liveness | Video Demo", layout="centered")
 st.title("Face Liveness")
 st.caption("Chấm một video bằng checkpoint PyTorch trên máy. Lấy mẫu 2 frame/giây trong 12 giây đầu.")
 
-checkpoints = sorted(Path("artifacts/personal").glob("liveness_*.pt"))
+checkpoints = [
+    path for mode in ("rgb", "gray")
+    if (path := Path("artifacts/personal") / f"liveness_{mode}.pt").is_file()
+]
 if not checkpoints:
     st.info("Hãy chạy `python personal_liveness.py train` để tạo checkpoint.")
     st.stop()

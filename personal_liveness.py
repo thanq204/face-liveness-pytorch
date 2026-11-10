@@ -19,6 +19,7 @@ LABELS = ("fake", "real")
 SPLITS = ("train", "validation", "test")
 EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv"}
 DETECTOR = Path(__file__).resolve().parent / "face_detector/face_detection_yunet_2023mar.onnx"
+DEFAULT_MODEL = Path("artifacts/personal/liveness_rgb.pt")
 
 
 class LivenessCNN(nn.Module):
@@ -48,6 +49,26 @@ def make_detector(path):
     return cv2.FaceDetectorYN.create(str(path), "", (320, 320), 0.62, 0.3, 5000)
 
 
+def single_face(frame, detector):
+    height, width = frame.shape[:2]
+    ratio = min(1, 640 / max(height, width))
+    size = (max(1, round(width * ratio)), max(1, round(height * ratio)))
+    small = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
+    detector.setInputSize(size)
+    _, boxes = detector.detect(small)
+    if boxes is None or len(boxes) != 1:
+        return None
+    x, y, w, h = boxes[0, :4]
+    left = max(0, math.floor(x * width / size[0]))
+    top = max(0, math.floor(y * height / size[1]))
+    right = min(width, math.ceil((x + w) * width / size[0]))
+    bottom = min(height, math.ceil((y + h) * height / size[1]))
+    if right <= left or bottom <= top:
+        return None
+    face = cv2.resize(frame[top:bottom, left:right], (32, 32), interpolation=cv2.INTER_AREA)
+    return cv2.cvtColor(face, cv2.COLOR_BGR2RGB), (left, top, right, bottom)
+
+
 def sample_faces(video, detector, sample_fps, seconds):
     """Take single-face samples at regular times; return RGB crops and attempt count."""
     cap = cv2.VideoCapture(str(video))
@@ -67,21 +88,9 @@ def sample_faces(video, detector, sample_fps, seconds):
             ok, frame = cap.retrieve()
             if not ok:
                 continue
-            height, width = frame.shape[:2]
-            ratio = min(1, 640 / max(height, width))
-            size = (max(1, round(width * ratio)), max(1, round(height * ratio)))
-            small = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
-            detector.setInputSize(size)
-            _, boxes = detector.detect(small)
-            if boxes is None or len(boxes) != 1:
-                continue
-            x, y, w, h = boxes[0, :4]
-            left, top = max(0, math.floor(x * width / size[0])), max(0, math.floor(y * height / size[1]))
-            right = min(width, math.ceil((x + w) * width / size[0]))
-            bottom = min(height, math.ceil((y + h) * height / size[1]))
-            if right > left and bottom > top:
-                face = cv2.resize(frame[top:bottom, left:right], (32, 32), interpolation=cv2.INTER_AREA)
-                faces.append(cv2.cvtColor(face, cv2.COLOR_BGR2RGB))
+            sample = single_face(frame, detector)
+            if sample is not None:
+                faces.append(sample[0])
     finally:
         cap.release()
     return faces, attempts
@@ -131,6 +140,8 @@ def split_metrics(model, inputs, cache, split):
     clip_ids, labels, splits = (cache[name] for name in ("clip_ids", "labels", "splits"))
     selected = splits[clip_ids] == split
     ids = clip_ids[selected]
+    if set(labels[ids]) != {0, 1}:
+        raise ValueError(f"The {SPLITS[split]} split needs an eligible clip from both classes.")
     with torch.inference_mode():
         logits = torch.cat([model(batch) for batch in inputs[selected].split(128)])
         probs = logits.sigmoid().numpy()
@@ -142,8 +153,6 @@ def split_metrics(model, inputs, cache, split):
         prediction = int(probs[ids == clip].mean() > 0.5)
         matrix[int(labels[clip])][prediction] += 1
     fake, real = (sum(row) for row in matrix)
-    if not fake or not real:
-        raise ValueError(f"The {SPLITS[split]} split needs an eligible clip from both classes.")
     apcer, bpcer = matrix[0][1] / fake, matrix[1][0] / real
     return {
         "assigned_clips": int((splits == split).sum()), "scored_clips": fake + real,
@@ -223,12 +232,25 @@ def load_classifier(model_path):
     return model, mode
 
 
+@torch.inference_mode()
+def frame_probabilities(model, mode, faces):
+    return model(tensor_images(faces, mode)).sigmoid()
+
+
+def score_frame(frame, detector, model, mode):
+    sample = single_face(frame, detector)
+    if sample is None:
+        return {"label": None, "p_real": None, "box": None}
+    face, box = sample
+    probability = float(frame_probabilities(model, mode, face[None])[0])
+    return {"label": "real" if probability > 0.5 else "fake", "p_real": probability, "box": box}
+
+
 def score_video(video, model, mode, detector_path=DETECTOR, sample_fps=2, seconds=12):
     faces, attempts = sample_faces(video, make_detector(detector_path), sample_fps, seconds)
     result = {"sampled_frames": attempts, "scored_frames": len(faces), "label": None, "p_real": None}
     if faces:
-        with torch.inference_mode():
-            probability = float(model(tensor_images(np.stack(faces), mode)).sigmoid().mean())
+        probability = float(frame_probabilities(model, mode, np.stack(faces)).mean())
         result.update(label="real" if probability > 0.5 else "fake", p_real=probability)
     return result
 
@@ -237,6 +259,25 @@ def predict(args):
     model, mode = load_classifier(args.model)
     result = score_video(args.video, model, mode, args.detector, args.sample_fps, args.seconds)
     print(json.dumps(result, indent=2))
+
+
+def evaluate(args):
+    model, mode = load_classifier(args.model)
+    with np.load(args.cache, allow_pickle=False) as cache:
+        result = split_metrics(model, tensor_images(cache["images"], mode), cache, SPLITS.index(args.split))
+    print(json.dumps({"input_mode": mode, "split": args.split, **result}, indent=2))
+
+
+def export(args):
+    model, mode = load_classifier(args.model)
+    example = torch.zeros((1, 1 if mode == "gray" else 3, 32, 32))
+    if args.model.resolve() == args.output.resolve():
+        raise ValueError("The exported model must use a different path from its checkpoint.")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    with torch.inference_mode():
+        traced = torch.jit.trace(model, example)
+    traced.save(str(args.output))
+    print(json.dumps({"input_mode": mode, "input_layout": "NCHW float32 in [0, 1]", "output": "real logit"}))
 
 
 def main():
@@ -254,6 +295,13 @@ def main():
     infer = sub.add_parser("predict")
     infer.add_argument("--video", type=Path, required=True)
     infer.add_argument("--model", type=Path, required=True)
+    bench = sub.add_parser("evaluate")
+    bench.add_argument("--model", type=Path, default=DEFAULT_MODEL)
+    bench.add_argument("--cache", type=Path, default=Path("artifacts/recordings.npz"))
+    bench.add_argument("--split", choices=SPLITS, default="test")
+    convert = sub.add_parser("export")
+    convert.add_argument("--model", type=Path, default=DEFAULT_MODEL)
+    convert.add_argument("--output", type=Path, required=True)
     for command in (prep, infer):
         command.add_argument("--detector", type=Path, default=DETECTOR)
         command.add_argument("--sample-fps", type=float, default=2)
@@ -267,7 +315,7 @@ def main():
         parser.error("Sampling rate and duration must be positive and finite.")
     if args.command == "train" and args.epochs < 1:
         parser.error("Epochs must be positive.")
-    {"prepare": prepare, "train": train, "predict": predict}[args.command](args)
+    {"prepare": prepare, "train": train, "predict": predict, "evaluate": evaluate, "export": export}[args.command](args)
 
 
 if __name__ == "__main__":
