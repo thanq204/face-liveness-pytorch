@@ -4,7 +4,13 @@
 
 A passive face liveness prototype trained on 91 videos I recorded. It uses YuNet to locate a face, a compact CNN to score 32 × 32 crops, and the mean frame score to classify a clip as real or spoof.
 
-![Held-out clip results for the RGB and grayscale CNNs](docs/media/benchmark.png)
+## Inference demo
+
+[![Face boxes and model predictions on an anonymized replay of a real clip and a spoof clip](docs/media/inference-preview.gif)](docs/media/inference-demo.mp4)
+
+[Watch the MP4](docs/media/inference-demo.mp4) · [Open a still frame](docs/media/inference-preview.png)
+
+This replay shows the RGB checkpoint running on two clips from the test split. The face boxes and scores come from inference on the original frames. The preview masks face and background details. The overlay averages the latest six eligible frames. The clip predictions below it use the same sampling protocol as the benchmark.
 
 ## What you can run
 
@@ -17,6 +23,8 @@ A passive face liveness prototype trained on 91 videos I recorded. It uses YuNet
 | Local video upload demo | [app.py](app.py) |
 
 ## Results
+
+![Held-out clip results for the RGB and grayscale CNNs](docs/media/benchmark.png)
 
 I recorded 47 spoof and 44 real clips. I assigned clips to train, validation and test before sampling frames, using a stratified split of **63 / 14 / 14 videos**. Of 2,098 sampled frames, 1,712 contained one face suitable for scoring. Both CNNs started from random weights and were trained for 15 epochs on CPU.
 

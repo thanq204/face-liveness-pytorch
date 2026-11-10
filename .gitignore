@@ -11,3 +11,4 @@ __pycache__/
 *.mkv
 *.npz
 *.pt
+!/docs/media/inference-demo.mp4
