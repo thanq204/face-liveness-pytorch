@@ -1,0 +1,114 @@
+{
+  "protocol": "stratified by label, split by video before cropping; subject separation not verified",
+  "dataset_seed": 42,
+  "train_seed": 42,
+  "epochs": 15,
+  "sample_fps_target": 2.0,
+  "seconds_per_clip": 12.0,
+  "real_threshold_exclusive": 0.5,
+  "videos_by_label": {
+    "fake": 47,
+    "real": 44
+  },
+  "sampled_frames": 2098,
+  "scored_frames": 1712,
+  "split_clips": {
+    "train": {
+      "fake": 33,
+      "real": 30
+    },
+    "validation": {
+      "fake": 7,
+      "real": 7
+    },
+    "test": {
+      "fake": 7,
+      "real": 7
+    }
+  },
+  "selected_on_validation": "rgb",
+  "models": {
+    "rgb": {
+      "best_epoch": 7,
+      "validation": {
+        "assigned_clips": 14,
+        "scored_clips": 13,
+        "scored_frames": 263,
+        "frame_bce": 0.054211344569921494,
+        "confusion_matrix_fake_real": [
+          [
+            7,
+            0
+          ],
+          [
+            0,
+            6
+          ]
+        ],
+        "pooled_apcer": 0.0,
+        "bpcer": 0.0,
+        "acer": 0.0
+      },
+      "test": {
+        "assigned_clips": 14,
+        "scored_clips": 14,
+        "scored_frames": 267,
+        "frame_bce": 0.13891223073005676,
+        "confusion_matrix_fake_real": [
+          [
+            6,
+            1
+          ],
+          [
+            0,
+            7
+          ]
+        ],
+        "pooled_apcer": 0.14285714285714285,
+        "bpcer": 0.0,
+        "acer": 0.07142857142857142
+      }
+    },
+    "gray": {
+      "best_epoch": 6,
+      "validation": {
+        "assigned_clips": 14,
+        "scored_clips": 13,
+        "scored_frames": 263,
+        "frame_bce": 0.5221073627471924,
+        "confusion_matrix_fake_real": [
+          [
+            5,
+            2
+          ],
+          [
+            0,
+            6
+          ]
+        ],
+        "pooled_apcer": 0.2857142857142857,
+        "bpcer": 0.0,
+        "acer": 0.14285714285714285
+      },
+      "test": {
+        "assigned_clips": 14,
+        "scored_clips": 14,
+        "scored_frames": 267,
+        "frame_bce": 0.5685118436813354,
+        "confusion_matrix_fake_real": [
+          [
+            2,
+            5
+          ],
+          [
+            0,
+            7
+          ]
+        ],
+        "pooled_apcer": 0.7142857142857143,
+        "bpcer": 0.0,
+        "acer": 0.35714285714285715
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+/data/
+/recordings/
+/artifacts/
+/.venv/
+__pycache__/
+*.py[cod]
+.env*
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.npz
+*.pt
